@@ -1,0 +1,38 @@
+[
+  {
+    "id": "e386b375-0cb7-4741-88f7-45a010d45a80",
+    "username": "admin",
+    "password": "$2a$10$SAc2f/FURtZ8l0eb8Wjy/eETkgBMPE9.UutwIQXouILTUQ14IQxR2",
+    "role": "admin",
+    "userType": "admin",
+    "name": "System Administrator",
+    "email": "admin@bamidele.edu.ng",
+    "studentId": null,
+    "department": "IT Department",
+    "createdAt": "2025-09-10T10:25:53.066Z"
+  },
+  {
+    "id": "10820f33-f7fc-495d-bdc3-910257601d40",
+    "username": "student001",
+    "password": "$2a$10$AoCLxPNOFILXQc0WkLgS9e7jWZsRYd7X2v12X5TtY25IlI8uFM/nS",
+    "role": "user",
+    "userType": "student",
+    "name": "Fagbuaro Babatunde Michael",
+    "email": "fagbuaro.babatunde@bamidele.edu.ng",
+    "studentId": "2789",
+    "department": "Computer Science",
+    "createdAt": "2025-09-10T10:25:53.066Z"
+  },
+  {
+    "id": "eb876aad-334c-4668-946f-2b7a3f2042a1",
+    "username": "staff001",
+    "password": "$2a$10$f6cA9m4/EBxjMrgWLEhKTuYVCDXX/nqlK6EnT4FecaCOX8Hds0BDi",
+    "role": "user",
+    "userType": "staff",
+    "name": "Dr. John Smith",
+    "email": "john.smith@bamidele.edu.ng",
+    "studentId": null,
+    "department": "Computer Science",
+    "createdAt": "2025-09-10T10:25:53.066Z"
+  }
+]
