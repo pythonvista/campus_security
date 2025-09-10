@@ -144,6 +144,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login', (req, res) => {
+  const error = req.query.error;
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -212,7 +213,7 @@ app.get('/login', (req, res) => {
           </div>
           <button type="submit">Login</button>
         </form>
-        <div id="error" class="error"></div>
+        <div id="error" class="error">${error === 'invalid' ? 'Invalid credentials or user type mismatch' : ''}</div>
       </div>
     </body>
     </html>
@@ -234,12 +235,7 @@ app.post('/login', async (req, res) => {
     req.session.department = user.department;
     res.redirect('/dashboard');
   } else {
-    res.send(`
-      <script>
-        document.getElementById('error').textContent = 'Invalid credentials or user type mismatch';
-        setTimeout(() => window.location.href = '/login', 2000);
-      </script>
-    `);
+    res.redirect('/login?error=invalid');
   }
 });
 
