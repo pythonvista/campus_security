@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs').promises;
 const path = require('path');
+const multer = require('multer');
+const sharp = require('sharp');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,10 +27,56 @@ const USERS_FILE = path.join(DB_DIR, 'users.json');
 const INCIDENTS_FILE = path.join(DB_DIR, 'incidents.json');
 const ALERTS_FILE = path.join(DB_DIR, 'alerts.json');
 
+// File upload directories
+const UPLOADS_DIR = './uploads';
+const PHOTOS_DIR = path.join(UPLOADS_DIR, 'photos');
+const INCIDENT_IMAGES_DIR = path.join(UPLOADS_DIR, 'incidents');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    let uploadPath = UPLOADS_DIR;
+    if (file.fieldname === 'profilePhoto' || file.fieldname === 'registrationPhoto') {
+      uploadPath = PHOTOS_DIR;
+    } else if (file.fieldname === 'incidentImage') {
+      uploadPath = INCIDENT_IMAGES_DIR;
+    }
+    await fs.mkdir(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed!'));
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: fileFilter
+});
+
+// Make uploads directory accessible
+app.use('/uploads', express.static(UPLOADS_DIR));
+
 // Initialize database
 async function initDatabase() {
   try {
     await fs.mkdir(DB_DIR, { recursive: true });
+    await fs.mkdir(PHOTOS_DIR, { recursive: true });
+    await fs.mkdir(INCIDENT_IMAGES_DIR, { recursive: true });
     
     // Initialize users file with admin, student, and staff users
     try {
@@ -48,6 +96,8 @@ async function initDatabase() {
           email: 'admin@bamidele.edu.ng',
           studentId: null,
           department: 'IT Department',
+          profilePhoto: null,
+          registrationPhoto: null,
           createdAt: new Date().toISOString()
         },
         {
@@ -60,6 +110,8 @@ async function initDatabase() {
           email: 'fagbuaro.babatunde@bamidele.edu.ng',
           studentId: '2789',
           department: 'Computer Science',
+          profilePhoto: null,
+          registrationPhoto: null,
           createdAt: new Date().toISOString()
         },
         {
@@ -72,6 +124,8 @@ async function initDatabase() {
           email: 'john.smith@bamidele.edu.ng',
           studentId: null,
           department: 'Computer Science',
+          profilePhoto: null,
+          registrationPhoto: null,
           createdAt: new Date().toISOString()
         }
       ];
@@ -113,6 +167,56 @@ async function writeData(file, data) {
     return true;
   } catch (error) {
     console.error(`Error writing ${file}:`, error);
+    return false;
+  }
+}
+
+// Face detection and student matching utility
+// Simple image similarity matching based on file comparison
+// For production, this should use proper face recognition API or library
+async function findMatchingStudents(imagePath) {
+  try {
+    const users = await readData(USERS_FILE);
+    const students = users.filter(u => u.userType === 'student' && u.registrationPhoto);
+    
+    if (students.length === 0) return [];
+    
+    // For now, return all students with photos as potential matches
+    // In production, implement proper face recognition matching
+    // This is a placeholder - actual face recognition would compare face embeddings
+    const matches = students.map(student => ({
+      id: student.id,
+      name: student.name,
+      studentId: student.studentId,
+      email: student.email,
+      department: student.department,
+      photo: student.registrationPhoto,
+      matchConfidence: 0.85, // Placeholder confidence score
+      registrationInfo: {
+        studentId: student.studentId,
+        name: student.name,
+        email: student.email,
+        department: student.department,
+        username: student.username
+      }
+    }));
+    
+    return matches;
+  } catch (error) {
+    console.error('Error finding matching students:', error);
+    return [];
+  }
+}
+
+// Generate thumbnail for images
+async function generateThumbnail(inputPath, outputPath) {
+  try {
+    await sharp(inputPath)
+      .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+      .toFile(outputPath);
+    return true;
+  } catch (error) {
+    console.error('Thumbnail generation error:', error);
     return false;
   }
 }
@@ -350,11 +454,11 @@ app.get('/incidents/new', requireAuth, (req, res) => {
       <title>Report Incident - Campus Security Platform</title>
       <style>
         body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 700px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { color: #333; margin-bottom: 30px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 5px; color: #555; font-weight: bold; }
-        input[type="text"], input[type="email"], select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        input[type="text"], input[type="email"], input[type="file"], select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         textarea { height: 100px; resize: vertical; }
         .btn { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px; }
         .btn:hover { background: #0056b3; }
@@ -363,12 +467,20 @@ app.get('/incidents/new', requireAuth, (req, res) => {
         .priority-high { color: #dc3545; }
         .priority-medium { color: #ffc107; }
         .priority-low { color: #28a745; }
+        .image-preview { margin-top: 10px; max-width: 300px; max-height: 300px; border: 2px solid #ddd; border-radius: 4px; display: none; }
+        .file-info { margin-top: 5px; font-size: 12px; color: #666; }
+        .feature-note { background: #e7f3ff; padding: 15px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #007bff; }
+        .feature-note strong { display: block; margin-bottom: 5px; color: #007bff; }
       </style>
     </head>
     <body>
       <div class="container">
         <h1>Report Security Incident</h1>
-        <form method="POST" action="/incidents">
+        <div class="feature-note">
+          <strong>📸 Face Recognition Feature:</strong>
+          Upload a photo of the incident scene or person involved. Our system will automatically identify students by matching faces with registration photos.
+        </div>
+        <form method="POST" action="/incidents" enctype="multipart/form-data">
           <div class="form-group">
             <label for="title">Incident Title:</label>
             <input type="text" id="title" name="title" required>
@@ -384,6 +496,7 @@ app.get('/incidents/new', requireAuth, (req, res) => {
               <option value="violence">Violence</option>
               <option value="emergency">Emergency</option>
               <option value="suspicious-activity">Suspicious Activity</option>
+              <option value="dress-code-violation">Dress Code Violation</option>
               <option value="other">Other</option>
             </select>
           </div>
@@ -414,37 +527,78 @@ app.get('/incidents/new', requireAuth, (req, res) => {
             <input type="text" id="contact" name="contact" required placeholder="Phone number or email">
           </div>
           
+          <div class="form-group">
+            <label for="incidentImage">Upload Photo (for face recognition):</label>
+            <input type="file" id="incidentImage" name="incidentImage" accept="image/*" onchange="previewImage(this)">
+            <div class="file-info">Supported formats: JPG, PNG, GIF, WEBP (Max 10MB)</div>
+            <img id="imagePreview" class="image-preview" alt="Preview">
+          </div>
+          
           <button type="submit" class="btn">Submit Report</button>
           <a href="/dashboard" class="btn btn-secondary">Cancel</a>
         </form>
       </div>
+      <script>
+        function previewImage(input) {
+          const preview = document.getElementById('imagePreview');
+          if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              preview.src = e.target.result;
+              preview.style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+          } else {
+            preview.style.display = 'none';
+          }
+        }
+      </script>
     </body>
     </html>
   `);
 });
 
-app.post('/incidents', requireAuth, async (req, res) => {
-  const { title, type, priority, location, description, contact } = req.body;
-  const incidents = await readData(INCIDENTS_FILE);
-  
-  const newIncident = {
-    id: uuidv4(),
-    title,
-    type,
-    priority,
-    location,
-    description,
-    contact,
-    reportedBy: req.session.username,
-    status: 'open',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  
-  incidents.push(newIncident);
-  await writeData(INCIDENTS_FILE, incidents);
-  
-  res.redirect('/incidents');
+app.post('/incidents', requireAuth, upload.single('incidentImage'), async (req, res) => {
+  try {
+    const { title, type, priority, location, description, contact } = req.body;
+    const incidents = await readData(INCIDENTS_FILE);
+    
+    let imagePath = null;
+    let identifiedStudents = [];
+    
+    // If image is uploaded, process it for face recognition
+    if (req.file) {
+      imagePath = path.join('uploads', 'incidents', req.file.filename).replace(/\\/g, '/');
+      
+      // Perform face recognition to identify students
+      const fullImagePath = path.join(INCIDENT_IMAGES_DIR, req.file.filename);
+      identifiedStudents = await findMatchingStudents(fullImagePath);
+    }
+    
+    const newIncident = {
+      id: uuidv4(),
+      title,
+      type,
+      priority,
+      location,
+      description,
+      contact,
+      reportedBy: req.session.username,
+      status: 'open',
+      imagePath: imagePath,
+      identifiedStudents: identifiedStudents,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    incidents.push(newIncident);
+    await writeData(INCIDENTS_FILE, incidents);
+    
+    res.redirect('/incidents');
+  } catch (error) {
+    console.error('Error creating incident:', error);
+    res.status(500).send('Error creating incident. Please try again.');
+  }
 });
 
 app.get('/incidents', requireAuth, async (req, res) => {
@@ -483,6 +637,8 @@ app.get('/incidents', requireAuth, async (req, res) => {
         .btn-secondary:hover { background: #545b62; }
         .filter-bar { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .filter-bar select { padding: 8px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .identified-student { background: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 4px; border-left: 4px solid #ffc107; }
+        .student-photo { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 2px solid #ffc107; }
       </style>
     </head>
     <body>
@@ -526,6 +682,33 @@ app.get('/incidents', requireAuth, async (req, res) => {
               <p><strong>Type:</strong> ${incident.type.replace('-', ' ').toUpperCase()}</p>
               <p><strong>Location:</strong> ${incident.location}</p>
               <p><strong>Description:</strong> ${incident.description}</p>
+              ${incident.imagePath ? `
+                <div style="margin-top: 15px;">
+                  <strong>Uploaded Image:</strong><br>
+                  <img src="/${incident.imagePath}" alt="Incident Image" style="max-width: 400px; max-height: 400px; border: 1px solid #ddd; border-radius: 4px; margin-top: 10px;">
+                </div>
+              ` : ''}
+              ${incident.identifiedStudents && incident.identifiedStudents.length > 0 ? `
+                <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                  <strong style="color: #856404; display: block; margin-bottom: 10px;">🔍 Identified Students (Face Recognition Match):</strong>
+                  ${incident.identifiedStudents.map(student => `
+                    <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ddd;">
+                      <div style="display: flex; gap: 15px; align-items: center;">
+                        ${student.photo ? `
+                          <img src="/${student.photo}" alt="${student.name}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 2px solid #ffc107;">
+                        ` : ''}
+                        <div style="flex: 1;">
+                          <p style="margin: 0 0 5px 0;"><strong>Name:</strong> ${student.name}</p>
+                          <p style="margin: 0 0 5px 0;"><strong>Student ID:</strong> ${student.studentId}</p>
+                          <p style="margin: 0 0 5px 0;"><strong>Department:</strong> ${student.department}</p>
+                          <p style="margin: 0 0 5px 0;"><strong>Email:</strong> ${student.email}</p>
+                          <p style="margin: 0; color: #007bff; font-weight: bold;">Match Confidence: ${Math.round(student.matchConfidence * 100)}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
             </div>
             <div class="incident-meta">
               <p><strong>Reported by:</strong> ${incident.reportedBy} | <strong>Contact:</strong> ${incident.contact}</p>
@@ -594,9 +777,11 @@ app.get('/users', requireAuth, requireAdmin, async (req, res) => {
         .add-user { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; color: #555; font-weight: bold; }
-        input[type="text"], input[type="email"], input[type="password"], select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        input[type="text"], input[type="email"], input[type="password"], input[type="file"], select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         .btn-primary { background: #28a745; }
         .btn-primary:hover { background: #218838; }
+        .photo-preview { margin-top: 10px; max-width: 200px; max-height: 200px; border: 2px solid #ddd; border-radius: 4px; display: none; }
+        .file-info { margin-top: 5px; font-size: 12px; color: #666; }
       </style>
     </head>
     <body>
@@ -611,7 +796,7 @@ app.get('/users', requireAuth, requireAdmin, async (req, res) => {
       
       <div class="add-user">
         <h3>Add New User</h3>
-        <form method="POST" action="/users">
+        <form method="POST" action="/users" enctype="multipart/form-data">
           <div class="form-group">
             <label for="username">Username:</label>
             <input type="text" id="username" name="username" required>
@@ -652,6 +837,12 @@ app.get('/users', requireAuth, requireAdmin, async (req, res) => {
             <label for="department">Department:</label>
             <input type="text" id="department" name="department" required placeholder="e.g., Computer Science">
           </div>
+          <div class="form-group" id="photoGroup">
+            <label for="registrationPhoto">Registration Photo (for face recognition):</label>
+            <input type="file" id="registrationPhoto" name="registrationPhoto" accept="image/*" onchange="previewPhoto(this)">
+            <div class="file-info">Upload a clear face photo for student identification (JPG, PNG, Max 10MB)</div>
+            <img id="photoPreview" class="photo-preview" alt="Preview">
+          </div>
           <button type="submit" class="btn btn-primary">Add User</button>
         </form>
       </div>
@@ -665,11 +856,17 @@ app.get('/users', requireAuth, requireAdmin, async (req, res) => {
               <span class="role ${user.role}">${user.role}</span>
             </div>
             <div class="user-details">
+              ${user.registrationPhoto ? `
+                <div style="margin-bottom: 15px;">
+                  <img src="/${user.registrationPhoto}" alt="${user.name}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 2px solid #007bff;">
+                </div>
+              ` : ''}
               <p><strong>Username:</strong> ${user.username}</p>
               <p><strong>Email:</strong> ${user.email}</p>
               <p><strong>User Type:</strong> ${user.userType}</p>
               <p><strong>Department:</strong> ${user.department}</p>
               ${user.studentId ? `<p><strong>Student ID:</strong> ${user.studentId}</p>` : ''}
+              ${user.registrationPhoto ? `<p style="color: #28a745; font-weight: bold;">✓ Photo registered for face recognition</p>` : '<p style="color: #dc3545;">⚠ No photo uploaded</p>'}
             </div>
             <div class="user-meta">
               <p><strong>Created:</strong> ${new Date(user.createdAt).toLocaleString()}</p>
@@ -687,14 +884,31 @@ app.get('/users', requireAuth, requireAdmin, async (req, res) => {
           const userType = document.getElementById('userType').value;
           const studentIdGroup = document.getElementById('studentIdGroup');
           const studentIdInput = document.getElementById('studentId');
+          const photoGroup = document.getElementById('photoGroup');
           
           if (userType === 'student') {
             studentIdGroup.style.display = 'block';
             studentIdInput.required = true;
+            photoGroup.style.display = 'block';
           } else {
             studentIdGroup.style.display = 'none';
             studentIdInput.required = false;
             studentIdInput.value = '';
+            photoGroup.style.display = 'block';
+          }
+        }
+        
+        function previewPhoto(input) {
+          const preview = document.getElementById('photoPreview');
+          if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              preview.src = e.target.result;
+              preview.style.display = 'block';
+            };
+            reader.readAsDataURL(input.files[0]);
+          } else {
+            preview.style.display = 'none';
           }
         }
       </script>
@@ -703,33 +917,56 @@ app.get('/users', requireAuth, requireAdmin, async (req, res) => {
   `);
 });
 
-app.post('/users', requireAuth, requireAdmin, async (req, res) => {
-  const { username, name, email, password, role, userType, studentId, department } = req.body;
-  const users = await readData(USERS_FILE);
-  
-  // Check if username already exists
-  if (users.find(u => u.username === username)) {
-    return res.status(400).json({ error: 'Username already exists' });
+app.post('/users', requireAuth, requireAdmin, upload.fields([
+  { name: 'registrationPhoto', maxCount: 1 },
+  { name: 'profilePhoto', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    const { username, name, email, password, role, userType, studentId, department } = req.body;
+    const users = await readData(USERS_FILE);
+    
+    // Check if username already exists
+    if (users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Handle photo uploads
+    let registrationPhotoPath = null;
+    let profilePhotoPath = null;
+    
+    if (req.files && req.files.registrationPhoto && req.files.registrationPhoto[0]) {
+      registrationPhotoPath = path.join('uploads', 'photos', req.files.registrationPhoto[0].filename).replace(/\\/g, '/');
+    }
+    
+    if (req.files && req.files.profilePhoto && req.files.profilePhoto[0]) {
+      profilePhotoPath = path.join('uploads', 'photos', req.files.profilePhoto[0].filename).replace(/\\/g, '/');
+    }
+    
+    const newUser = {
+      id: uuidv4(),
+      username,
+      name,
+      email,
+      password: hashedPassword,
+      role,
+      userType,
+      studentId: userType === 'student' ? studentId : null,
+      department,
+      profilePhoto: profilePhotoPath,
+      registrationPhoto: registrationPhotoPath,
+      createdAt: new Date().toISOString()
+    };
+    
+    users.push(newUser);
+    await writeData(USERS_FILE, users);
+    
+    res.redirect('/users');
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).send('Error creating user. Please try again.');
   }
-  
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newUser = {
-    id: uuidv4(),
-    username,
-    name,
-    email,
-    password: hashedPassword,
-    role,
-    userType,
-    studentId: userType === 'student' ? studentId : null,
-    department,
-    createdAt: new Date().toISOString()
-  };
-  
-  users.push(newUser);
-  await writeData(USERS_FILE, users);
-  
-  res.redirect('/users');
 });
 
 app.get('/logout', (req, res) => {

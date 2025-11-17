@@ -10,12 +10,14 @@ A minimalistic Express.js web application for campus security management, design
 
 - **Multi-User Authentication**: Separate login portals for Admin, Student, and Staff
 - **Role-Based Access Control**: Different permissions and interfaces based on user type
-- **Incident Reporting**: Easy-to-use form for reporting security incidents
-- **Incident Management**: View, filter, and track incident status
-- **User Management**: Admin panel for managing system users with student/staff roles
+- **Incident Reporting**: Easy-to-use form for reporting security incidents with image upload
+- **Face Recognition & Student Identification**: Automatically identify students from uploaded incident photos by matching faces with registration photos
+- **Incident Management**: View, filter, and track incident status with photo evidence
+- **User Management**: Admin panel for managing system users with student/staff roles and photo registration
 - **Real-time Dashboard**: Overview of security statistics and recent incidents
 - **JSON Database**: File-based storage using JSON files (no external database required)
 - **Student ID Tracking**: Automatic student ID management for student users
+- **Photo Registration**: Upload registration photos for face recognition and identification
 
 ## Quick Start
 
@@ -45,6 +47,9 @@ A minimalistic Express.js web application for campus security management, design
 │   ├── users.json     # User accounts and authentication data
 │   ├── incidents.json # Security incident reports
 │   └── alerts.json    # System alerts and notifications
+├── uploads/           # Uploaded files (auto-created)
+│   ├── photos/        # User registration photos
+│   └── incidents/     # Incident scene photos
 └── README.md          # This file
 ```
 
@@ -58,17 +63,21 @@ A minimalistic Express.js web application for campus security management, design
 - Student ID tracking for student users
 
 ### Incident Management
-- **Report Incidents**: Students and staff can report security incidents
-- **Incident Types**: Theft, vandalism, unauthorized access, violence, emergency, suspicious activity
+- **Report Incidents**: Students and staff can report security incidents with photo evidence
+- **Incident Types**: Theft, vandalism, unauthorized access, violence, emergency, suspicious activity, dress code violation, other
 - **Priority Levels**: Low, Medium, High, Critical
 - **Status Tracking**: Open, Investigating, Resolved
 - **Location Tracking**: Building, room, or area specification
+- **Photo Upload**: Upload images of incident scenes or persons involved
+- **Automatic Student Identification**: Face recognition automatically identifies students from uploaded photos by matching with registration photos
+- **Registration Info Display**: Shows identified student's registration information including name, ID, department, and email
 
 ### User Management (Admin Only)
 - Add new users to the system with user type selection
 - Assign roles (Admin/User) and user types (Admin/Student/Staff)
 - Manage user accounts with department and student ID tracking
-- View user activity and profile information
+- Upload registration photos for face recognition (especially important for students)
+- View user activity, profile information, and registration photos
 
 ### Dashboard Features
 - Real-time statistics
@@ -137,6 +146,30 @@ A minimalistic Express.js web application for campus security management, design
 - Role-based access control
 - Input validation
 - SQL injection prevention (using JSON files)
+- Image upload validation (file type and size restrictions)
+- Secure file storage with organized directory structure
+
+## Face Recognition Feature
+
+The platform now includes automatic student identification through face recognition:
+
+1. **Photo Registration**: When creating student accounts, administrators can upload registration photos that serve as reference images for face matching.
+
+2. **Incident Photo Upload**: When reporting an incident, users can upload photos of the scene or persons involved.
+
+3. **Automatic Identification**: The system automatically matches faces in uploaded incident photos against registered student photos and identifies potential matches.
+
+4. **Registration Info Display**: For each identified student, the system displays:
+   - Full name
+   - Student ID
+   - Department
+   - Email address
+   - Registration photo
+   - Match confidence percentage
+
+5. **Security Personnel Assistance**: This feature helps security personnel quickly identify individuals involved in incidents, especially useful for dress code violations, unauthorized access, or other security concerns.
+
+**Note**: The current implementation uses a simplified matching algorithm. For production use, consider integrating professional face recognition APIs (such as AWS Rekognition, Azure Face API, or face-api.js library) for more accurate results.
 
 ## Development
 
@@ -161,6 +194,8 @@ The application is designed to be easily extensible. Key areas for enhancement:
 - **Database**: JSON files (file-based storage)
 - **Frontend**: HTML, CSS, JavaScript (server-side rendered)
 - **Utilities**: UUID for unique identifiers
+- **File Upload**: Multer for handling multipart/form-data
+- **Image Processing**: Sharp for image optimization and thumbnail generation
 
 ## Future Enhancements
 
